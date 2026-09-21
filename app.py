@@ -6,7 +6,7 @@ import asyncio
 import aiohttp
 import threading
 
-# Python event loop fix for new versions
+# Python event loop fix for main thread
 try:
     asyncio.get_event_loop()
 except RuntimeError:
@@ -23,7 +23,7 @@ BOT_TOKEN = "8958831796:AAFjYOzJMs2jW47ZKZz5Vu4gQ3f_xekLuQ8"
 RENDER_API_KEY = "rnd_qVIxYN9gFYJyHIH2djWV1uR2G9Zi"
 RENDER_SERVICE_ID = "srv-daoicip42hec73a00tk0"
 
-# Token ko ab Environment Variable se uthayega (GitHub block nahi karega)
+# Token ko Environment Variable se uthayega
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_SPACE_ID = "Bfbfh/anime-bot"
 
@@ -370,6 +370,11 @@ async def handle_file(client, message):
 
 def run_bot():
     print("🚀 7anime Bot Starting...")
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    except Exception:
+        pass
     app.run()
 
 def dummy_interface(name):
