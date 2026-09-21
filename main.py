@@ -1,20 +1,19 @@
 import asyncio
+import json
+import os
+import re
 import sys
+import time
+import aiohttp
+from aiohttp import web
+from pyrogram import Client, filters
 
-# --- EVENT LOOP FIX FOR PYTHON 3.10+ / 3.12+ / 3.14 BEFORE IMPORTING PYROGRAM ---
+# --- EVENT LOOP FIX FOR PYTHON 3.10+ / 3.12+ / 3.14 ---
 try:
   loop = asyncio.get_event_loop()
 except RuntimeError:
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
-
-import json
-import os
-import re
-import time
-import aiohttp
-from aiohttp import web
-from pyrogram import Client, filters
 
 # --- CONFIGURATION ---
 API_ID = 31169133
@@ -36,6 +35,10 @@ HEADERS = {
         " (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
 }
+
+# --- GLOBAL TRACKERS ---
+TOTAL_UPLOAD_BYTES = 0
+LIMIT_80GB_BYTES = 80 * 1024 * 1024 * 1024  # 80 GB in bytes
 
 app = Client(
     "7anime_cloud_session",
@@ -65,6 +68,12 @@ async def start_web_server():
 
 
 # --- HELPER FUNCTIONS ---
+def format_bytes(bytes_size):
+  if bytes_size >= 1073741824:  # >= 1 GB
+    return f"{bytes_size / 1073741824:.2f} GB"
+  return f"{bytes_size / 1048576:.1f} MB"
+
+
 def make_bar(percent):
   done = int(percent // 10)
   return "🟩" * done + "⬜" * (10 - done)
@@ -247,7 +256,7 @@ async def upload_file_aiohttp(
         await tracker_task
 
 
-# --- QUEUE WORKER (ONE BY ONE PROCESSING TO PREVENT RENDER OOM) ---
+# --- QUEUE WORKER (ONE BY ONE PROCESSING) ---
 async def process_queue_worker():
   while True:
     message = await task_queue.get()
@@ -261,6 +270,7 @@ async def process_queue_worker():
 
 
 async def process_single_file(message):
+  global TOTAL_UPLOAD_BYTES
   anime_name, season_num, episode_num = parse_anime_info(message)
   msg = await message.reply_text(
       f"⏳ **{anime_name} - S{season_num}E{episode_num}** Processing shuru ho"
@@ -276,13 +286,13 @@ async def process_single_file(message):
       last_update[0] = now
       percent = (current / total) * 100
       bar = make_bar(percent)
-      mb_cur = round(current / (1024 * 1024), 1)
-      mb_tot = round(total / (1024 * 1024), 1)
+      cur_str = format_bytes(current)
+      tot_str = format_bytes(total)
       try:
         await msg.edit_text(
             f"📥 **Downloading:** {anime_name} (S{season_num}E{episode_num})\n"
             f"[{bar}] {percent:.1f}%\n"
-            f"💾 {mb_cur} MB / {mb_tot} MB"
+            f"💾 {cur_str} / {tot_str}"
         )
       except Exception:
         pass
@@ -293,6 +303,7 @@ async def process_single_file(message):
       await msg.edit_text(f"❌ **{anime_name}** Download fail ho gaya.")
       return
 
+    file_size_bytes = os.path.getsize(downloaded_path)
     clean_fn = sanitize_filename(
         os.path.basename(downloaded_path), anime_name, season_num, episode_num
     )
@@ -315,14 +326,14 @@ async def process_single_file(message):
           last_update[0] = now
           percent = (cur / tot) * 100
           bar = make_bar(percent)
-          mb_cur = round(cur / (1024 * 1024), 1)
-          mb_tot = round(tot / (1024 * 1024), 1)
+          cur_str = format_bytes(cur)
+          tot_str = format_bytes(tot)
           try:
             await msg.edit_text(
                 "📤 **Uploading to Vidhide:**\n"
                 f"🎬 `{anime_name} - S{season_num}E{episode_num}`\n"
                 f"[{bar}] {percent:.1f}%\n"
-                f"💾 {mb_cur} MB / {mb_tot} MB"
+                f"🚀 {cur_str} / {tot_str}"
             )
           except Exception:
             pass
@@ -339,9 +350,20 @@ async def process_single_file(message):
 
       vidhide_code = extract_filecode(res_text)
       if vidhide_code:
+        TOTAL_UPLOAD_BYTES += file_size_bytes
         break
       else:
         vidhide_err = res_text[:120] if res_text else "Empty Response"
+
+    # --- 80 GB WARNING CHECK ---
+    warning_block = ""
+    if TOTAL_UPLOAD_BYTES >= LIMIT_80GB_BYTES:
+      total_gb = TOTAL_UPLOAD_BYTES / (1024**3)
+      warning_block = (
+          "\n\n🚨 **WARNING: 80 GB Limit Cross Ho Gaya Hai!**\n"
+          f"📊 **Total Data Uploaded:** `{total_gb:.2f} GB` / `80 GB`\n"
+          "⚠️ *Please Vidhide account storage/limit check kar lijiye!*"
+      )
 
     if vidhide_code:
       v_embed = f"https://vidhidepro.com/v/{vidhide_code}"
@@ -354,10 +376,12 @@ async def process_single_file(message):
           f"`{v_embed}`\n\n"
           "📌 **Iframe Code (7anime Website):**\n"
           f'`<iframe src="{v_embed}" width="100%" height="400" frameborder="0"'
-          ' allowfullscreen></iframe>`'
+          f' allowfullscreen></iframe>`{warning_block}'
       )
     else:
-      final_output = f"❌ **Upload Failed:** `{safe_text(vidhide_err)}`"
+      final_output = (
+          f"❌ **Upload Failed:** `{safe_text(vidhide_err)}`{warning_block}"
+      )
 
     await msg.edit_text(final_output)
 
@@ -379,7 +403,20 @@ async def start_cmd(client, message):
       "🔹 **Usage:**\n"
       "1. Anime ka naam text karke bhej sakte ho (Optional).\n"
       "2. Videos/Documents forward karo, Queue me add ho jayegi.\n"
-      "3. `/changeapi <key>` - Nayi API key add karne ke liye."
+      "3. `/changeapi <key>` - Nayi API key add karne ke liye.\n"
+      "4. `/stats` - Total Upload Data dekhne ke liye."
+  )
+
+
+@app.on_message(filters.command("stats"))
+async def stats_cmd(client, message):
+  total_gb = TOTAL_UPLOAD_BYTES / (1024**3)
+  status_icon = "🟢 Normal" if TOTAL_UPLOAD_BYTES < LIMIT_80GB_BYTES else "🔴 WARNING (Limit Crossed)"
+  await message.reply_text(
+      "📊 **Bot Data Usage Stats:**\n\n"
+      f"📤 **Total Uploaded:** `{format_bytes(TOTAL_UPLOAD_BYTES)}` ({total_gb:.2f} GB)\n"
+      f"🎯 **Limit Target:** `80.00 GB`\n"
+      f"STATUS: **{status_icon}**"
   )
 
 
@@ -398,7 +435,7 @@ async def change_api_cmd(client, message):
     await message.reply_text("⚠️ Kripya key likhein: `/changeapi <your_key>`")
 
 
-@app.on_message(filters.text & ~filters.command(["start", "changeapi"]))
+@app.on_message(filters.text & ~filters.command(["start", "changeapi", "stats"]))
 async def save_anime_name(client, message):
   user_id = message.from_user.id
   anime_name = safe_text(message.text)
@@ -424,4 +461,4 @@ if __name__ == "__main__":
   loop.create_task(process_queue_worker())
   print("🚀 7anime Cloud Bot Starting...")
   app.run()
-        
+    
