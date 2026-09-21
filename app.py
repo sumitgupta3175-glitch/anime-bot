@@ -6,12 +6,6 @@ import asyncio
 import aiohttp
 import threading
 
-# Python event loop fix for main thread
-try:
-    asyncio.get_event_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
 import gradio as gr
 from pyrogram import Client, filters
 
@@ -23,13 +17,11 @@ BOT_TOKEN = "8958831796:AAGTz9Tn3pSX7cacYISjZlMBtzt7Z2R8Q5U"
 RENDER_API_KEY = "rnd_qVIxYN9gFYJyHIH2djWV1uR2G9Zi"
 RENDER_SERVICE_ID = "srv-daoicip42hec73a00tk0"
 
-# Token ko Environment Variable se uthayega
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_SPACE_ID = "Bfbfh/anime-bot"
 
-# Bandwidth Tracker (Bytes mein)
 TOTAL_BANDWIDTH_USED = 0
-WARNING_LIMIT_BYTES = 40 * 1024 * 1024 * 1024  # 40 GB par warning milegi
+WARNING_LIMIT_BYTES = 40 * 1024 * 1024 * 1024  # 40 GB
 WARNING_SENT = False
 
 VIDHIDE_API_KEYS = [
@@ -184,7 +176,7 @@ async def start_cmd(client, message):
 
 @app.on_message(filters.command("switch_to_render"))
 async def switch_to_render_cmd(client, message):
-    await message.reply_text("🔄 **Switching to Render...** Render service ko resume kiya ja raha hai!")
+    await message.reply_text("🔄 **Switching to Render...**")
     url = f"https://api.render.com/v1/services/{RENDER_SERVICE_ID}/resume"
     headers = {"Authorization": f"Bearer {RENDER_API_KEY}", "Accept": "application/json"}
     
@@ -192,17 +184,17 @@ async def switch_to_render_cmd(client, message):
         try:
             async with session.post(url, headers=headers) as resp:
                 if resp.status in [200, 204]:
-                    await message.reply_text("✅ **Render ON ho gaya!** Ab Hugging Face bot ko band kiya ja raha hai.")
+                    await message.reply_text("✅ **Render ON ho gaya!**")
                     os._exit(0)
                 else:
                     text = await resp.text()
-                    await message.reply_text(f"❌ Render on karne mein error: {text}")
+                    await message.reply_text(f"❌ Error: {text}")
         except Exception as e:
             await message.reply_text(f"⚠️ Exception: {str(e)}")
 
 @app.on_message(filters.command("switch_to_hf"))
 async def switch_to_hf_cmd(client, message):
-    await message.reply_text("🔄 **Switching to Hugging Face...** HF Space restart kiya ja raha hai!")
+    await message.reply_text("🔄 **Switching to Hugging Face...**")
     url = f"https://huggingface.co/api/spaces/{HF_SPACE_ID}/restart"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
@@ -210,13 +202,13 @@ async def switch_to_hf_cmd(client, message):
         try:
             async with session.post(url, headers=headers) as resp:
                 if resp.status in [200, 201]:
-                    await message.reply_text("✅ **Hugging Face restart ho gaya!** Ab Render ko suspend/sleep kiya ja raha hai.")
+                    await message.reply_text("✅ **Hugging Face restart ho gaya!**")
                     render_suspend_url = f"https://api.render.com/v1/services/{RENDER_SERVICE_ID}/suspend"
                     await session.post(render_suspend_url, headers={"Authorization": f"Bearer {RENDER_API_KEY}"})
                     os._exit(0)
                 else:
                     text = await resp.text()
-                    await message.reply_text(f"❌ HF restart error: {text}")
+                    await message.reply_text(f"❌ Error: {text}")
         except Exception as e:
             await message.reply_text(f"⚠️ Exception: {str(e)}")
 
@@ -227,16 +219,16 @@ async def change_api_cmd(client, message):
         new_key = args[1].strip()
         if new_key not in VIDHIDE_API_KEYS:
             VIDHIDE_API_KEYS.append(new_key)
-        await message.reply_text(f"✅ Nayi API key successfully add ho gayi hai!\n🔑 Total active keys: `{len(VIDHIDE_API_KEYS)}`")
+        await message.reply_text(f"✅ Nayi API key add ho gayi!\n🔑 Total keys: `{len(VIDHIDE_API_KEYS)}`")
     else:
-        await message.reply_text("⚠️ Kripya key bhi likhein.\nExample: `/changeapi 47699lkja012c5mp3mw23`")
+        await message.reply_text("⚠️ Example: `/changeapi 47699lkja012c5mp3mw23`")
 
 @app.on_message(filters.text & ~filters.command(["start", "changeapi", "switch_to_render", "switch_to_hf"]))
 async def save_anime_name(client, message):
     user_id = message.from_user.id
     anime_name = safe_text(message.text)
     USER_ANIME_NAMES[user_id] = anime_name
-    await message.reply_text(f"✅ Anime Name Saved: **{anime_name}**\nAb iski videos forward karein!")
+    await message.reply_text(f"✅ Anime Name Saved: **{anime_name}**\nAb videos forward karein!")
 
 @app.on_message(filters.video | filters.document)
 async def handle_file(client, message):
@@ -300,10 +292,7 @@ async def handle_file(client, message):
             if TOTAL_BANDWIDTH_USED >= WARNING_LIMIT_BYTES and not WARNING_SENT:
                 WARNING_SENT = True
                 try:
-                    await client.send_message(
-                        chat_id=message.chat.id,
-                        text="⚠️ **WARNING: Bandwidth 40 GB cross ho chuki hai!**\nKripya `/switch_to_render` use karke Render par switch kar lo."
-                    )
+                    await client.send_message(chat_id=message.chat.id, text="⚠️ **Bandwidth 40 GB cross ho chuki hai!**")
                 except Exception:
                     pass
 
@@ -316,7 +305,6 @@ async def handle_file(client, message):
                 for attempt in range(1, 3):
                     async with aiohttp.ClientSession() as session:
                         upload_url = await get_working_upload_server(session, api_key)
-                    
                     if upload_url == "RATE_LIMIT":
                         break
                     if upload_url:
@@ -324,24 +312,17 @@ async def handle_file(client, message):
                     await asyncio.sleep(2)
 
                 if upload_url == "RATE_LIMIT":
-                    last_err = f"API Rate Limit on Key: {api_key[:6]}..."
                     continue
 
                 if not upload_url:
                     continue
 
                 res_text = await upload_file_aiohttp(upload_url, downloaded_path, clean_fn, api_key, ul_progress)
-                
                 if res_text == "RATE_LIMIT":
-                    last_err = f"API Rate Limit on Key: {api_key[:6]}..."
                     continue
 
                 code = extract_filecode(res_text)
-                if code == "RATE_LIMIT":
-                    last_err = f"API Rate Limit on Key: {api_key[:6]}..."
-                    continue
-                
-                if code:
+                if code and code != "RATE_LIMIT":
                     break
                 else:
                     last_err = res_text[:120] if res_text else "Empty Response"
@@ -352,7 +333,7 @@ async def handle_file(client, message):
                     f"✅ **Upload Complete!**\n\n"
                     f"🎬 **{video_title}**\n\n"
                     f"🔗 **Embed Link:**\n`{embed}`\n\n"
-                    f"📌 **Iframe Code (7anime Website):**\n"
+                    f"📌 **Iframe Code:**\n"
                     f"`<iframe src=\"{embed}\" width=\"100%\" height=\"400\" frameborder=\"0\" allowfullscreen></iframe>`"
                 )
                 await msg.edit_text(result_text)
@@ -360,7 +341,7 @@ async def handle_file(client, message):
                 await msg.edit_text(f"⚠️ **{video_title}** Failed. Reason: `{safe_text(last_err)}`")
 
         except Exception as e:
-            await msg.edit_text(f"⚠️ **{video_title}** Error: `{safe_text(str(e))}`")
+            await msg.edit_text(f"⚠️ Error: `{safe_text(str(e))}`")
         finally:
             if downloaded_path and os.path.exists(downloaded_path):
                 try:
@@ -370,15 +351,12 @@ async def handle_file(client, message):
 
 def run_bot():
     print("🚀 7anime Bot Starting...")
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     async def main():
         await app.start()
         await asyncio.Event().wait()
         
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except Exception as e:
         print(f"Bot Error: {e}")
 
@@ -390,7 +368,7 @@ demo = gr.Interface(
     inputs="text",
     outputs="text",
     title="7anime Cloud Vidhide Bot Dashboard",
-    description="Bot is running in the background. Send videos via Telegram!"
+    description="Bot is running in the background."
 )
 
 if __name__ == "__main__":
