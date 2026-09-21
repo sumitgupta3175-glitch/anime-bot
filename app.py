@@ -5,6 +5,13 @@ import json
 import asyncio
 import aiohttp
 import threading
+
+# Python event loop fix for new versions
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 import gradio as gr
 from pyrogram import Client, filters
 
@@ -15,7 +22,7 @@ BOT_TOKEN = "8958831796:AAFjYOzJMs2jW47ZKZz5Vu4gQ3f_xekLuQ8"
 # Failover & Switch Configuration
 RENDER_API_KEY = "rnd_qVIxYN9gFYJyHIH2djWV1uR2G9Zi"
 RENDER_SERVICE_ID = "srv-daoicip42hec73a00tk0"
-HF_TOKEN = "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"
+HF_TOKEN = "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"
 HF_SPACE_ID = "Bfbfh/anime-bot"
 
 # Bandwidth Tracker (Bytes mein)
@@ -286,16 +293,14 @@ async def handle_file(client, message):
                 return
 
             file_size = os.path.getsize(downloaded_path)
-            # Bandwidth update (download size + upload size)
             TOTAL_BANDWIDTH_USED += (file_size * 2)
 
-            # Check for 40 GB Warning limit
             if TOTAL_BANDWIDTH_USED >= WARNING_LIMIT_BYTES and not WARNING_SENT:
                 WARNING_SENT = True
                 try:
                     await client.send_message(
                         chat_id=message.chat.id,
-                        text="⚠️ **WARNING: Bandwidth 40 GB cross ho chuki hai!**\nKripya `/switch_command` use karke Render par switch kar lo taaki limit khatam na ho."
+                        text="⚠️ **WARNING: Bandwidth 40 GB cross ho chuki hai!**\nKripya `/switch_to_render` use karke Render par switch kar lo."
                     )
                 except Exception:
                     pass
@@ -382,4 +387,4 @@ if __name__ == "__main__":
     bot_thread.start()
     
     demo.launch(server_name="0.0.0.0", server_port=7860)
-                
+        
