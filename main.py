@@ -1,4 +1,13 @@
 import asyncio
+import sys
+
+# --- EVENT LOOP FIX FOR PYTHON 3.10+ / 3.12+ / 3.14 BEFORE IMPORTING PYROGRAM ---
+try:
+  loop = asyncio.get_event_loop()
+except RuntimeError:
+  loop = asyncio.new_event_loop()
+  asyncio.set_event_loop(loop)
+
 import json
 import os
 import re
@@ -52,6 +61,7 @@ async def start_web_server():
   port = int(os.environ.get("PORT", 8080))
   site = web.TCPSite(runner, "0.0.0.0", port)
   await site.start()
+  print(f"Web server started on port {port}")
 
 
 # --- HELPER FUNCTIONS ---
@@ -237,7 +247,7 @@ async def upload_file_aiohttp(
         await tracker_task
 
 
-# --- QUEUE WORKER (ONE BY ONE PROCESSING) ---
+# --- QUEUE WORKER (ONE BY ONE PROCESSING TO PREVENT RENDER OOM) ---
 async def process_queue_worker():
   while True:
     message = await task_queue.get()
@@ -408,11 +418,10 @@ async def handle_file(client, message):
   await task_queue.put(message)
 
 
-# --- MAIN EXECUTION ---
+# --- ENTRYPOINT ---
 if __name__ == "__main__":
-  loop = asyncio.get_event_loop()
   loop.run_until_complete(start_web_server())
   loop.create_task(process_queue_worker())
   print("🚀 7anime Cloud Bot Starting...")
   app.run()
-                  
+        
