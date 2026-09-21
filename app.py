@@ -370,12 +370,17 @@ async def handle_file(client, message):
 
 def run_bot():
     print("🚀 7anime Bot Starting...")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def main():
+        await app.start()
+        await asyncio.Event().wait()
+        
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    except Exception:
-        pass
-    app.run()
+        loop.run_until_complete(main())
+    except Exception as e:
+        print(f"Bot Error: {e}")
 
 def dummy_interface(name):
     return f"Hello {name}, 7anime Cloud Bot is running smoothly!"
@@ -394,4 +399,4 @@ if __name__ == "__main__":
     bot_thread.start()
     
     demo.launch(server_name="0.0.0.0", server_port=7860)
-                    
+    
