@@ -17,7 +17,7 @@ from pyrogram import Client, filters
 
 API_ID = 31169133
 API_HASH = "b836f4b836df4cf83c2d475a5ad3b285"
-BOT_TOKEN = "8958831796:AAFjYOzJMs2jW47ZKZz5Vu4gQ3f_xekLuQ8"
+BOT_TOKEN = "8958831796:AAGTz9Tn3pSX7cacYISjZlMBtzt7Z2R8Q5U"
 
 # Failover & Switch Configuration
 RENDER_API_KEY = "rnd_qVIxYN9gFYJyHIH2djWV1uR2G9Zi"
@@ -400,4 +400,4 @@ if __name__ == "__main__":
     
     port = int(os.environ.get("PORT", 7860))
     demo.launch(server_name="0.0.0.0", server_port=port)
-                              
+                
