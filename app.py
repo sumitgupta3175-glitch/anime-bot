@@ -22,7 +22,9 @@ BOT_TOKEN = "8958831796:AAFjYOzJMs2jW47ZKZz5Vu4gQ3f_xekLuQ8"
 # Failover & Switch Configuration
 RENDER_API_KEY = "rnd_qVIxYN9gFYJyHIH2djWV1uR2G9Zi"
 RENDER_SERVICE_ID = "srv-daoicip42hec73a00tk0"
-HF_TOKEN = "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"
+
+# Token ko ab Environment Variable se uthayega (GitHub block nahi karega)
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_SPACE_ID = "Bfbfh/anime-bot"
 
 # Bandwidth Tracker (Bytes mein)
@@ -387,4 +389,4 @@ if __name__ == "__main__":
     bot_thread.start()
     
     demo.launch(server_name="0.0.0.0", server_port=7860)
-        
+                    
